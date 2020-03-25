@@ -15,8 +15,9 @@ def loadData(fileName, columnName):
     data = pd.read_csv(baseURL + fileName) \
              .drop(['Lat', 'Long'], axis=1) \
              .melt(id_vars=['Province/State', 'Country/Region'], var_name='date', value_name=columnName) \
-             .fillna('<all>')
-    data['date'] = data['date'].astype('datetime64[ns]')
+             .astype({'date':'datetime64[ns]', columnName:'Int64'}, errors='ignore')
+    data['Province/State'].fillna('<all>', inplace=True)
+    data[columnName].fillna(0, inplace=True)
     return data
 
 allData = loadData("time_series_19-covid-Confirmed.csv", "CumConfirmed") \
@@ -79,12 +80,13 @@ def update_states(country):
     return state_options, state_value
 
 def nonreactive_data(country, state):
-    data = allData.loc[allData['Country/Region'] == country]
+    data = allData.loc[allData['Country/Region'] == country] \
+                  .drop('Country/Region', axis=1)
     if state == '<all>':
         data = data.drop('Province/State', axis=1).groupby("date").sum().reset_index()
     else:
         data = data.loc[data['Province/State'] == state]
-    newCases = data.select_dtypes(include='int64').diff().fillna(0)
+    newCases = data.select_dtypes(include='Int64').diff().fillna(0)
     newCases.columns = [column.replace('Cum', 'New') for column in newCases.columns]
     data = data.join(newCases)
     data['dateStr'] = data['date'].dt.strftime('%b %d, %Y')
