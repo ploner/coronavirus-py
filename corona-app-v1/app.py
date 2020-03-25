@@ -126,5 +126,7 @@ def update_plot_cum_metrics(country, state, metrics):
     data = nonreactive_data(country, state)
     return barchart(data, metrics, prefix="Cum", yaxisTitle="Cumulated Cases")
 
+server = app.server
+
 if __name__ == '__main__':
     app.run_server(debug=True)
