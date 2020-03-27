@@ -1,15 +1,14 @@
-version: '3.1'
- 
+version: "3.7"
+
 services:
- 
-  https-portal:
+  corona-py:
+    build:
+      context: .
+    image: corona-py:$VERSION
+    container_name: corona-py
     ports:
-      - '80:80'
-      - '443:443'
-      
-    restart: always
-    
-    environment: 
-      STAGE: local
-      FORCE_RENEW: 'false'
- 
+      - "3810:8050"
+    environment:
+      - TARGET=$TARGET
+    restart: unless-stopped
+
