@@ -4,8 +4,11 @@ import dash_html_components as html
 import plotly.graph_objects as go
 from dash.dependencies import Input, Output
 import pandas as pd
+from datetime import datetime
+from os.path import isfile
 
 baseURL = "https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/"
+fileNamePickle = "allData.pkl"
 
 external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
 
@@ -20,11 +23,21 @@ def loadData(fileName, columnName):
     data[columnName].fillna(0, inplace=True)
     return data
 
-allData = loadData("time_series_covid19_confirmed_global.csv", "CumConfirmed") \
-    .merge(loadData("time_series_covid19_deaths_global.csv", "CumDeaths")) \
-    .merge(loadData("time_series_covid19_recovered_global.csv", "CumRecovered"))
+def refreshData():
+    print("Refresh data.")
+    allData = loadData("time_series_covid19_confirmed_global.csv", "CumConfirmed") \
+        .merge(loadData("time_series_covid19_deaths_global.csv", "CumDeaths")) \
+        .merge(loadData("time_series_covid19_recovered_global.csv", "CumRecovered"))
+    allData.to_pickle(fileNamePickle)
+    return allData
 
-countries = allData['Country/Region'].unique()
+def allData():
+    if not isfile(fileNamePickle):
+        refreshData()
+    allData = pd.read_pickle(fileNamePickle)
+    return allData
+
+countries = allData()['Country/Region'].unique()
 countries.sort()
 
 app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
@@ -64,6 +77,11 @@ app.layout = html.Div(
     dcc.Graph(
         id="plot_cum_metrics",
         config={ 'displayModeBar': False }
+    ),
+    dcc.Interval(
+        id='interval-component',
+        interval=3600*1000, # Refresh data each hour.
+        n_intervals=0
     )
 ])
 
@@ -72,16 +90,17 @@ app.layout = html.Div(
     [Input('country', 'value')]
 )
 def update_states(country):
-    states = list(allData.loc[allData['Country/Region'] == country]['Province/State'].unique())
+    d = allData()
+    states = list(d.loc[d['Country/Region'] == country]['Province/State'].unique())
     states.insert(0, '<all>')
     states.sort()
     state_options = [{'label':s, 'value':s} for s in states]
     state_value = state_options[0]['value']
     return state_options, state_value
 
-def nonreactive_data(country, state):
-    data = allData.loc[allData['Country/Region'] == country] \
-                  .drop('Country/Region', axis=1)
+def filtered_data(country, state):
+    d = allData()
+    data = d.loc[d['Country/Region'] == country].drop('Country/Region', axis=1)
     if state == '<all>':
         data = data.drop('Province/State', axis=1).groupby("date").sum().reset_index()
     else:
@@ -111,20 +130,16 @@ def barchart(data, metrics, prefix="", yaxisTitle=""):
     return figure
 
 @app.callback(
-    Output('plot_new_metrics', 'figure'), 
-    [Input('country', 'value'), Input('state', 'value'), Input('metrics', 'value')]
+    [Output('plot_new_metrics', 'figure'), Output('plot_cum_metrics', 'figure')], 
+    [Input('country', 'value'), Input('state', 'value'), Input('metrics', 'value'), Input('interval-component', 'n_intervals')]
 )
-def update_plot_new_metrics(country, state, metrics):
-    data = nonreactive_data(country, state)
-    return barchart(data, metrics, prefix="New", yaxisTitle="New Cases per Day")
+def update_plots(country, state, metrics, n):
+    refreshData()
+    data = filtered_data(country, state)
+    barchart_new = barchart(data, metrics, prefix="New", yaxisTitle="New Cases per Day")
+    barchart_cum = barchart(data, metrics, prefix="Cum", yaxisTitle="Cumulated Cases")
+    return barchart_new, barchart_cum
 
-@app.callback(
-    Output('plot_cum_metrics', 'figure'), 
-    [Input('country', 'value'), Input('state', 'value'), Input('metrics', 'value')]
-)
-def update_plot_cum_metrics(country, state, metrics):
-    data = nonreactive_data(country, state)
-    return barchart(data, metrics, prefix="Cum", yaxisTitle="Cumulated Cases")
 
 server = app.server
 
