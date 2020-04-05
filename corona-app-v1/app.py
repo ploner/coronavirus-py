@@ -24,7 +24,6 @@ def loadData(fileName, columnName):
     return data
 
 def refreshData():
-    print("Refresh data.")
     allData = loadData("time_series_covid19_confirmed_global.csv", "CumConfirmed") \
         .merge(loadData("time_series_covid19_deaths_global.csv", "CumDeaths")) \
         .merge(loadData("time_series_covid19_recovered_global.csv", "CumRecovered"))
@@ -41,6 +40,31 @@ countries = allData()['Country/Region'].unique()
 countries.sort()
 
 app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
+
+## App title, keywords and tracking tag (optional).
+app.index_string = """<!DOCTYPE html>
+<html>
+    <head>
+        <!-- Global site tag (gtag.js) - Google Analytics -->
+        <script async src="https://www.googletagmanager.com/gtag/js?id=UA-161733256-2"></script>
+        <script>
+          window.dataLayer = window.dataLayer || [];
+          function gtag(){dataLayer.push(arguments);}
+          gtag('js', new Date());
+          gtag('config', 'UA-161733256-2');
+        </script>
+        <meta name="keywords" content="COVID-19,Coronavirus,Dash,Python,Dashboard,Cases,Statistics">
+        <title>COVID-19 Case History</title>
+    </head>
+    <body>
+        {%app_entry%}
+        <footer>
+            {%config%}
+            {%scripts%}
+            {%renderer%}
+       </footer>
+    </body>
+</html>"""
 
 app.layout = html.Div(
     style={ 'font-family':"Courier New, monospace" },
@@ -140,13 +164,7 @@ def update_plots(country, state, metrics, n):
     barchart_cum = barchart(data, metrics, prefix="Cum", yaxisTitle="Cumulated Cases")
     return barchart_new, barchart_cum
 
-
 server = app.server
-
-## Optional: track traffic. 
-app.scripts.append_script({
-    ‘external_url’: ‘https://raw.githubusercontent.com/ploner/coronavirus-py/master/corona-app-v1/gtag.js’
-})
 
 if __name__ == '__main__':
     app.run_server(host="0.0.0.0", debug=True)
