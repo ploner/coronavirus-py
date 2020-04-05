@@ -55,6 +55,8 @@ app.index_string = """<!DOCTYPE html>
         </script>
         <meta name="keywords" content="COVID-19,Coronavirus,Dash,Python,Dashboard,Cases,Statistics">
         <title>COVID-19 Case History</title>
+        {%favicon%}
+        {%css%}
     </head>
     <body>
         {%app_entry%}
@@ -69,45 +71,46 @@ app.index_string = """<!DOCTYPE html>
 app.layout = html.Div(
     style={ 'font-family':"Courier New, monospace" },
     children=[
-    html.H1('Case History of the Coronavirus (COVID-19)'),
-    html.Div(className="row", children=[
-        html.Div(className="four columns", children=[
-            html.H5('Country'),
-            dcc.Dropdown(
-                id='country',
-                options=[{'label':c, 'value':c} for c in countries],
-                value='Italy'
-            )
+        html.H1('Case History of the Coronavirus (COVID-19)'),
+        html.Div(className="row", children=[
+            html.Div(className="four columns", children=[
+                html.H5('Country'),
+                dcc.Dropdown(
+                    id='country',
+                    options=[{'label':c, 'value':c} for c in countries],
+                    value='Italy'
+                )
+            ]),
+            html.Div(className="four columns", children=[
+                html.H5('State / Province'),
+                dcc.Dropdown(
+                    id='state'
+                )
+            ]),
+            html.Div(className="four columns", children=[
+                html.H5('Selected Metrics'),
+                dcc.Checklist(
+                    id='metrics',
+                    options=[{'label':m, 'value':m} for m in ['Confirmed', 'Deaths', 'Recovered']],
+                    value=['Confirmed', 'Deaths']
+                )
+            ])
         ]),
-        html.Div(className="four columns", children=[
-            html.H5('State / Province'),
-            dcc.Dropdown(
-                id='state'
-            )
-        ]),
-        html.Div(className="four columns", children=[
-            html.H5('Selected Metrics'),
-            dcc.Checklist(
-                id='metrics',
-                options=[{'label':m, 'value':m} for m in ['Confirmed', 'Deaths', 'Recovered']],
-                value=['Confirmed', 'Deaths']
-            )
-        ])
-    ]),
-    dcc.Graph(
-        id="plot_new_metrics",
-        config={ 'displayModeBar': False }
-    ),
-    dcc.Graph(
-        id="plot_cum_metrics",
-        config={ 'displayModeBar': False }
-    ),
-    dcc.Interval(
-        id='interval-component',
-        interval=3600*1000, # Refresh data each hour.
-        n_intervals=0
-    )
-])
+        dcc.Graph(
+            id="plot_new_metrics",
+            config={ 'displayModeBar': False }
+        ),
+        dcc.Graph(
+            id="plot_cum_metrics",
+            config={ 'displayModeBar': False }
+        ),
+        dcc.Interval(
+            id='interval-component',
+            interval=3600*1000, # Refresh data each hour.
+            n_intervals=0
+        )
+    ]
+)
 
 @app.callback(
     [Output('state', 'options'), Output('state', 'value')],
@@ -167,4 +170,4 @@ def update_plots(country, state, metrics, n):
 server = app.server
 
 if __name__ == '__main__':
-    app.run_server(host="0.0.0.0", debug=True)
+    app.run_server(host="0.0.0.0")
