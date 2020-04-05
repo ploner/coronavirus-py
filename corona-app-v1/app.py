@@ -143,5 +143,10 @@ def update_plots(country, state, metrics, n):
 
 server = app.server
 
+## Optional: track traffic. 
+app.scripts.append_script({
+    ‘external_url’: ‘https://raw.githubusercontent.com/ploner/coronavirus-py/master/corona-app-v1/gtag.js’
+})
+
 if __name__ == '__main__':
     app.run_server(host="0.0.0.0", debug=True)
