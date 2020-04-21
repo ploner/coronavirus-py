@@ -41,6 +41,9 @@ def loadData_US(fileName, columnName):
              .groupby(['Country', 'Province/State', 'date']).agg(agg_dict).reset_index()
     return data
 
+def simple_moving_average(df, len=7):
+    return df.rolling(len).mean()
+
 def refreshData():
     data_GLOB = loadData_GLOB("time_series_covid19_confirmed_global.csv", "CumConfirmed") \
         .merge(loadData_GLOB("time_series_covid19_deaths_global.csv", "CumDeaths"))
@@ -111,7 +114,7 @@ app.layout = html.Div(
                 html.H5('Selected Metrics'),
                 dcc.Checklist(
                     id='metrics',
-                    options=[{'label':m, 'value':m} for m in ['Confirmed', 'Deaths', 'Recovered']],
+                    options=[{'label':m, 'value':m} for m in ['Confirmed', 'Deaths']],
                     value=['Confirmed', 'Deaths']
                 )
             ])
@@ -156,16 +159,33 @@ def filtered_data(country, state):
     newCases.columns = [column.replace('Cum', 'New') for column in newCases.columns]
     data = data.join(newCases)
     data['dateStr'] = data['date'].dt.strftime('%b %d, %Y')
+    data['NewDeathsSMA7'] = simple_moving_average(data.NewDeaths, len=7)
+    data['NewConfirmedSMA7'] = simple_moving_average(data.NewConfirmed, len=7)
     return data
+
+def add_trend_lines(figure, data, metrics, prefix):
+    if prefix == 'New':
+        for metric in metrics:
+            figure.add_trace(
+                go.Scatter(
+                    x=data.date, y=data[prefix + metric + 'SMA7'], 
+                    mode='lines', line=dict(
+                        width=3, color='rgb(200,30,30)' if metric == 'Deaths' else 'rgb(100,140,240)'
+                    ),
+                    name='Rolling 7-Day Average of Deaths' if metric == 'Deaths' \
+                        else 'Rolling 7-Day Average of Confirmed'
+                )
+            )
 
 def barchart(data, metrics, prefix="", yaxisTitle=""):
     figure = go.Figure(data=[
         go.Bar( 
             name=metric, x=data.date, y=data[prefix + metric],
             marker_line_color='rgb(0,0,0)', marker_line_width=1,
-            marker_color={ 'Deaths':'rgb(200,30,30)', 'Recovered':'rgb(30,200,30)', 'Confirmed':'rgb(100,140,240)'}[metric]
+            marker_color={ 'Deaths':'rgb(200,30,30)', 'Confirmed':'rgb(100,140,240)'}[metric]
         ) for metric in metrics
     ])
+    add_trend_lines(figure, data, metrics, prefix)
     figure.update_layout( 
               barmode='group', legend=dict(x=.05, y=0.95, font={'size':15}, bgcolor='rgba(240,240,240,0.5)'), 
               plot_bgcolor='#FFFFFF', font=tickFont) \
