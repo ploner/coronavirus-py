@@ -3,6 +3,7 @@ import dash_core_components as dcc
 import dash_html_components as html
 import plotly.graph_objects as go
 from dash.dependencies import Input, Output
+import numpy as np
 import pandas as pd
 from datetime import datetime
 from os.path import isfile
@@ -14,21 +15,40 @@ external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
 
 tickFont = {'size':12, 'color':"rgb(30,30,30)", 'family':"Courier New, monospace"}
 
-def loadData(fileName, columnName): 
+def loadData_GLOB(fileName, columnName): 
+    agg_dict = { columnName:sum, 'Lat':np.median, 'Long':np.median }
     data = pd.read_csv(baseURL + fileName) \
-             .drop(['Lat', 'Long'], axis=1) \
-             .melt(id_vars=['Province/State', 'Country/Region'], var_name='date', value_name=columnName) \
+             .rename(columns={ 'Country/Region':'Country' }) \
+             .melt(id_vars=['Country', 'Province/State', 'Lat', 'Long'], var_name='date', value_name=columnName) \
              .astype({'date':'datetime64[ns]', columnName:'Int64'}, errors='ignore')
-    data['Province/State'].fillna('<all>', inplace=True)
-    data[columnName].fillna(0, inplace=True)
+    ## Extract chinese provinces separately.
+    data_CHI = data[data.Country == 'China']
+    data = data.groupby(['Country', 'date']).agg(agg_dict).reset_index()
+    data['Province/State'] = '<all>'
+    return pd.concat([data, data_CHI])
+
+def loadData_US(fileName, columnName): 
+    id_vars=['Country', 'Province/State', 'Lat', 'Long']
+    agg_dict = { columnName:sum, 'Lat':np.median, 'Long':np.median }
+    data = data = pd.read_csv(baseURL + fileName).iloc[:, 6:]
+    if 'Population' in data.columns:
+        data = data.drop('Population', axis=1)
+    data = data \
+             .drop('Combined_Key', axis=1) \
+             .rename(columns={ 'Country_Region':'Country', 'Province_State':'Province/State', 'Long_':'Long' }) \
+             .melt(id_vars=id_vars, var_name='date', value_name=columnName) \
+             .astype({'date':'datetime64[ns]', columnName:'Int64'}, errors='ignore') \
+             .groupby(['Country', 'Province/State', 'date']).agg(agg_dict).reset_index()
     return data
 
 def refreshData():
-    allData = loadData("time_series_covid19_confirmed_global.csv", "CumConfirmed") \
-        .merge(loadData("time_series_covid19_deaths_global.csv", "CumDeaths")) \
-        .merge(loadData("time_series_covid19_recovered_global.csv", "CumRecovered"))
-    allData.to_pickle(fileNamePickle)
-    return allData
+    data_GLOB = loadData_GLOB("time_series_covid19_confirmed_global.csv", "CumConfirmed") \
+        .merge(loadData_GLOB("time_series_covid19_deaths_global.csv", "CumDeaths"))
+    data_US = loadData_US("time_series_covid19_confirmed_US.csv", "CumConfirmed") \
+        .merge(loadData_US("time_series_covid19_deaths_US.csv", "CumDeaths"))
+    data = pd.concat([data_GLOB, data_US])
+    data.to_pickle(fileNamePickle)
+    return data
 
 def allData():
     if not isfile(fileNamePickle):
@@ -36,7 +56,7 @@ def allData():
     allData = pd.read_pickle(fileNamePickle)
     return allData
 
-countries = allData()['Country/Region'].unique()
+countries = allData()['Country'].unique()
 countries.sort()
 
 app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
@@ -118,7 +138,7 @@ app.layout = html.Div(
 )
 def update_states(country):
     d = allData()
-    states = list(d.loc[d['Country/Region'] == country]['Province/State'].unique())
+    states = list(d.loc[d['Country'] == country]['Province/State'].unique())
     states.insert(0, '<all>')
     states.sort()
     state_options = [{'label':s, 'value':s} for s in states]
@@ -127,7 +147,7 @@ def update_states(country):
 
 def filtered_data(country, state):
     d = allData()
-    data = d.loc[d['Country/Region'] == country].drop('Country/Region', axis=1)
+    data = d.loc[d['Country'] == country].drop('Country', axis=1)
     if state == '<all>':
         data = data.drop('Province/State', axis=1).groupby("date").sum().reset_index()
     else:
